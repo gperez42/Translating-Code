@@ -9,7 +9,7 @@ void processLine(char *line, FILE *outputFile) {
         fprintf(outputFile, "%s;\n", line);
     }
     // Translate print statements
-    else if (strncmp(line, "System.out.println", 18) == 0) {
+    else if (strncmp(line, "System.out.println", 18) == 0 || strncmp(line, "System.out.print", 16) == 0) {
         char *text = strchr(line, '(') + 1;
         char *end = strrchr(text, ')');
         *end = '\0'; // Remove the closing parenthesis
