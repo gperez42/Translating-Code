@@ -5,7 +5,7 @@
 // Function to process a line of Java code and generate C code
 void processLine(char *line, FILE *outputFile) {
     // Translate variable declarations
-    if (strncmp(line, "int ", 4) == 0 || strncmp(line, "float ", 6) == 0 || strncmp(line, "double ", 7) == 0 || strncmp(line, "String ", 7) == 0) {
+    if (strncmp(line, "int ", 4) == 0 || strncmp(line, "float ", 6) == 0 || strncmp(line, "double ", 7) == 0 || strncmp(line, "String", 7) == 0) {
         fprintf(outputFile, "%s;\n", line);
     }
     // Translate print statements
@@ -19,6 +19,8 @@ void processLine(char *line, FILE *outputFile) {
     else if (strchr(line, '=') != NULL) {
         fprintf(outputFile, "%s;\n", line);
     }
+
+    else if (strncmp(line, "import", 6) == 0 || strncmp(line, "", 0) == 0){}
     // Handle unsupported lines
     else {
         fprintf(stderr, "Unsupported line: %s\n", line);
