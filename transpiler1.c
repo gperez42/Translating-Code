@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     char line[256];
     while (fgets(line, sizeof(line), inputFile)) {
         line[strcspn(line, "\n")] = '\0'; // Remove newline character
-        processLine(line, outputFile);
+         processLine(line, outputFile);
     }
 
     fprintf(outputFile, "return 0;\n}\n");
