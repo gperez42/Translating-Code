@@ -1,7 +1,9 @@
 #include <stdio.h>
 
 int main() {
-int num = 4;;
-printf("%s\n", num);
+printf("%s\n", "int num = 4;
+");
+printf("%s\n", "System.out.println(num);
+");
 return 0;
 }
