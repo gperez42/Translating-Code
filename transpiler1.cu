@@ -15,16 +15,96 @@ __device__ void device_strcpy(char *dest, const char *src) {
     dest[i] = '\0';  // Null-terminate the string
 }
 
+__device__ char* device_strchr(char *str, char c) {
+    int i = 0;
+    while (str[i] != '\0') {
+        if (str[i] == c) {
+            return &str[i];
+        }
+        i++;
+    }
+    return NULL;
+}
+
+__device__ char* device_strrchr(char *str, char c) {
+    int i = 0;
+    char *last_occurrence = NULL;
+    while (str[i] != '\0') {
+        if (str[i] == c) {
+            last_occurrence = &str[i];
+        }
+        i++;
+    }
+    return last_occurrence;
+}
+
+__device__ int device_strlen(const char *str) {
+    int len = 0;
+    while (str[len] != '\0') {
+        len++;
+    }
+    return len;
+}
+
+__device__ void device_strcat(char *dest, const char *src) {
+    int dest_len = device_strlen(dest);
+    int i = 0;
+    while (src[i] != '\0') {
+        dest[dest_len + i] = src[i];
+        i++;
+    }
+    dest[dest_len + i] = '\0';  // Null-terminate the resulting string
+}
+
+__device__ void processPrintStatement(const char *line, char *output) {
+    char *openParen = device_strchr((char *)line, '(');   // Use device_strchr
+    char *closeParen = device_strrchr((char *)line, ')'); // Use device_strrchr
+
+    if (openParen && closeParen) {
+        openParen++;  // Move past the '('
+        int length = closeParen - openParen;
+
+        if (length > 0) {
+           if (length > 0) {
+            if (*openParen == '"') {  // String literal
+                device_strcpy(output, "printf(\"%s\\n\", ");
+            } else {  // Integer or variable
+                device_strcpy(output, "printf(\"%d\\n\", ");
+            }
+
+              // Copy the content inside parentheses
+            int offset = device_strlen(output);
+            for (int i = 0; i < length; i++) {
+                output[offset + i] = openParen[i];
+            }
+            output[offset + length] = '\0';
+
+            
+            // Add closing parenthesis and semicolon
+            device_strcat(output, ");\n");
+        }
+     } else {
+        // Handle invalid print statement
+        device_strcpy(output, "/* Invalid print statement */\n");
+       }
+    }
+}
+
 // Kernel to process the lines on the GPU
 __global__ void processLineKernel(char *d_lines, int *d_flags, char *d_output, int numLines) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (idx < numLines) {
+    	// char *line = d_lines + idx * MAX_LINE_LENGTH;
+        char temp[MAX_LINE_LENGTH];  // Temporary buffer for output
+        // int out_idx = 0;  // Index for temp buffer
+
         // Process variable declarations or print statements based on flags
         if (d_flags[idx] == 1) {  // Variable declaration
             device_strcpy(d_output + idx * MAX_LINE_LENGTH, d_lines + idx * MAX_LINE_LENGTH);
-        } else if (d_flags[idx] == 2) {  // Print statement
-            // Add handling for print statements here (e.g., printf)
+        } else if (d_flags[idx] == 2) {  // Print statement           
+        	processPrintStatement(d_lines + idx * MAX_LINE_LENGTH, temp);
+        	device_strcpy(d_output + idx * MAX_LINE_LENGTH, temp);    
         } else if (d_flags[idx] == 3) {  // Assignment operation
             device_strcpy(d_output + idx * MAX_LINE_LENGTH, d_lines + idx * MAX_LINE_LENGTH);
  		}  else if (d_flags[idx] == 4) {  // Handle #include <stdio.h>
@@ -78,7 +158,7 @@ int main(int argc, char *argv[]) {
     }
 
      // Write the #include <stdio.h> line first
-    fprintf(outputFile, "#include <stdio.h>\n");
+    fprintf(outputFile, "#include <stdio.h>\n\n");
 
     fclose(inputFile);
 
