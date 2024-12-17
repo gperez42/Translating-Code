@@ -15,90 +15,108 @@ __device__ void device_strcpy(char *dest, const char *src) {
     dest[i] = '\0';  // Null-terminate the string
 }
 
-
-// CUDA kernel to process each line and generate C code (simple parsing)
-__global__ void processLineKernel(char *d_lines, char *d_output, int numLines) {
-    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+// Kernel to process the lines on the GPU
+__global__ void processLineKernel(char *d_lines, int *d_flags, char *d_output, int numLines) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    
     if (idx < numLines) {
-        // Process the line (e.g., copying or transforming data)
-        // Example: Copy the line from d_lines to d_output
-        device_strcpy(d_output + idx * MAX_LINE_LENGTH, d_lines + idx * MAX_LINE_LENGTH);
+        // Process variable declarations or print statements based on flags
+        if (d_flags[idx] == 1) {  // Variable declaration
+            device_strcpy(d_output + idx * MAX_LINE_LENGTH, d_lines + idx * MAX_LINE_LENGTH);
+        } else if (d_flags[idx] == 2) {  // Print statement
+            // Add handling for print statements here (e.g., printf)
+        } else if (d_flags[idx] == 3) {  // Assignment operation
+            device_strcpy(d_output + idx * MAX_LINE_LENGTH, d_lines + idx * MAX_LINE_LENGTH);
+ 		}  else if (d_flags[idx] == 4) {  // Handle #include <stdio.h>
+            device_strcpy(d_output + idx * MAX_LINE_LENGTH, d_lines + idx * MAX_LINE_LENGTH);
+        } else if (d_flags[idx] == 5) {  // Unsupported line
+            device_strcpy(d_output + idx * MAX_LINE_LENGTH, "Unsupported line\n");
+        }
+        
+     }
+}
+
+// Host-side function to preprocess the lines
+void processLine(const char *line, FILE *outputFile, int *flags, int idx) {
+    if (strncmp(line, "int ", 4) == 0 || strncmp(line, "float ", 6) == 0 || 
+        strncmp(line, "double ", 7) == 0 || strncmp(line, "String", 7) == 0) {
+        flags[idx] = 1; // Mark this line as a variable declaration
+    }
+    else if (strncmp(line, "System.out.println", 18) == 0 || strncmp(line, "System.out.print", 16) == 0) {
+        flags[idx] = 2; // Mark this line for print statement handling
+    }
+    else if (strchr(line, '=') != NULL) {
+        flags[idx] = 3; // Mark for simple assignment handling
+    }
+    else if (strncmp(line, "import", 6) == 0 || strncmp(line, "", 0) == 0) {
+        flags[idx] = 0; // Skip imports or empty lines
+    }
+    else if (strncmp(line, "#include <stdio.h>", 18) == 0) {
+        flags[idx] = 4; // Mark this line as a special include line
+    }
+    else {
+        flags[idx] = 5; // Unsupported line
     }
 }
 
-
-
+// Main function
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <input_file> <output_file>\n", argv[0]);
-        return 1;
-    }
-
-    // Open the input file for reading
-    FILE *inputFile = fopen(argv[1], "r");
-    if (inputFile == NULL) {
-        perror("Error opening input file");
-        return 1;
-    }
-
-	// Open the output file for writing
-    FILE *outputFile = fopen(argv[2], "w");
-    if (outputFile == NULL) {
-        perror("Error opening output file");
-        fclose(inputFile);
-        return 1;
-    }
-
-	 // Read the Java file into memory
     char lines[MAX_LINES][MAX_LINE_LENGTH];
+    int flags[MAX_LINES];
+    FILE *inputFile = fopen(argv[1], "r");
+    FILE *outputFile = fopen(argv[2], "w");
+
+    if (!inputFile || !outputFile) {
+        fprintf(stderr, "Error opening file\n");
+        return 1;
+    }
+
     int numLines = 0;
     while (fgets(lines[numLines], sizeof(lines[numLines]), inputFile)) {
+        processLine(lines[numLines], outputFile, flags, numLines);
         numLines++;
-        if (numLines >= MAX_LINES) break;
     }
 
-        // Allocate memory on the device for input and output
+     // Write the #include <stdio.h> line first
+    fprintf(outputFile, "#include <stdio.h>\n");
+
+    fclose(inputFile);
+
+    // Prepare the data for CUDA
     char *d_lines, *d_output;
-    cudaMalloc(&d_lines, numLines * MAX_LINE_LENGTH * sizeof(char));
-    cudaMalloc(&d_output, numLines * MAX_LINE_LENGTH * sizeof(char));
+    int *d_flags;
 
-    // Copy input lines to the device
-    cudaMemcpy(d_lines, lines, numLines * MAX_LINE_LENGTH * sizeof(char), cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&d_lines, MAX_LINES * MAX_LINE_LENGTH * sizeof(char));
+    cudaMalloc((void**)&d_flags, MAX_LINES * sizeof(int));
+    cudaMalloc((void**)&d_output, MAX_LINES * MAX_LINE_LENGTH * sizeof(char));
 
-	// Launch the CUDA kernel with enough threads to process all lines
+    cudaMemcpy(d_lines, lines, MAX_LINES * MAX_LINE_LENGTH * sizeof(char), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_flags, flags, MAX_LINES * sizeof(int), cudaMemcpyHostToDevice);
+
+     // Launch the kernel with numLines blocks and threads per block
     int threadsPerBlock = 256;
     int blocks = (numLines + threadsPerBlock - 1) / threadsPerBlock;
-    processLineKernel<<<blocks, threadsPerBlock>>>(d_lines, d_output, numLines);
+    processLineKernel<<<blocks, threadsPerBlock>>>(d_lines, d_flags, d_output, numLines);
 
-	// Wait for the kernel to finish
+    // Check for kernel errors
     cudaDeviceSynchronize();
-
+    
     // Copy the processed output back to the host
     char output[MAX_LINES][MAX_LINE_LENGTH];
-    cudaMemcpy(output, d_output, numLines * MAX_LINE_LENGTH * sizeof(char), cudaMemcpyDeviceToHost);
+    cudaMemcpy(output, d_output, MAX_LINES * MAX_LINE_LENGTH * sizeof(char), cudaMemcpyDeviceToHost);
 
-   // Write the C code to the output file
-    fprintf(outputFile, "#include <stdio.h>\n\nint main() {\n");
+     // Write the processed lines to the output file
     for (int i = 0; i < numLines; i++) {
-        // Now perform string formatting here on the host side
-        // We can use snprintf to format the output as needed
-        char formattedLine[MAX_LINE_LENGTH];
-        snprintf(formattedLine, sizeof(formattedLine), "printf(\"%%s\\n\", \"%s\");\n", output[i]);
-        fprintf(outputFile, "%s", formattedLine);
+        if (strlen(output[i]) > 0) {
+            fprintf(outputFile, "%s\n", output[i]);
+        }
     }
-    fprintf(outputFile, "return 0;\n}\n");
-  // Clean up and close files
-    fclose(inputFile);
-    fclose(outputFile);
+
+       // Clean up
     cudaFree(d_lines);
+    cudaFree(d_flags);
     cudaFree(d_output);
 
+    fclose(outputFile);
     return 0;
 }
-
-
-
-
-
-
-
