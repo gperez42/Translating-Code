@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cuda_runtime.h>
+#include <sys/time.h>
 
 #define MAX_LINES 1024
 #define MAX_LINE_LENGTH 256
@@ -81,7 +82,7 @@ __device__ void processPrintStatement(const char *line, char *output) {
 
             
             // Add closing parenthesis and semicolon
-            device_strcat(output, ");\n");
+            device_strcat(output, ");");
         }
      } else {
         // Handle invalid print statement
@@ -139,8 +140,20 @@ void processLine(const char *line, FILE *outputFile, int *flags, int idx) {
     }
 }
 
+double get_clock() {
+  struct timeval tv; 
+  int ok = gettimeofday(&tv, (void *) 0);
+  if (ok<0) { 
+  	printf("gettimeofday error"); 
+  }
+  return (tv.tv_sec * 1.0 + tv.tv_usec * 1.0E-6);
+}
+
 // Main function
 int main(int argc, char *argv[]) {
+
+	double t0 = get_clock();
+
     char lines[MAX_LINES][MAX_LINE_LENGTH];
     int flags[MAX_LINES];
     FILE *inputFile = fopen(argv[1], "r");
@@ -194,7 +207,10 @@ int main(int argc, char *argv[]) {
 
 	fprintf(outputFile, "return 0;\n}\n");
 
-       // Clean up
+	double t1 = get_clock();
+    printf("time per call: %f s\n", t1-t0);
+
+    // Free memory
     cudaFree(d_lines);
     cudaFree(d_flags);
     cudaFree(d_output);
