@@ -6,7 +6,7 @@ import os
 
 # Set up OpenAI API credentials
 
-openai.api_key = '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'
+openai.api_key = '' # enter your API key here
 
 messages = [ {"role": "system", "content":
               "You are a intelligent assistant."} ]
