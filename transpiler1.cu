@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     }
 
      // Write the #include <stdio.h> line first
-    fprintf(outputFile, "#include <stdio.h>\n\n");
+    fprintf(outputFile, "#include <stdio.h>\n\nint main() {\n");
 
     fclose(inputFile);
 
@@ -191,6 +191,8 @@ int main(int argc, char *argv[]) {
             fprintf(outputFile, "%s\n", output[i]);
         }
     }
+
+	fprintf(outputFile, "return 0;\n}\n");
 
        // Clean up
     cudaFree(d_lines);
