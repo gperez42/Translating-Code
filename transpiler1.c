@@ -1,18 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+#include <sys/time.h>
 
 // clock code from 5.2 powerpoint
-// double  get_clock() {
-//      struct timeval tv;
-//      int ok;
-//      ok = gettimeofday(&tv, (void *) 0);
-//      if (ok<0) {
-//              printf(“gettimeofday error”);
-//      }
-//      return (tv.tv_sec * 1.0 + tv.tv_usec * 1.0E-6);
-// }
+double  get_clock() {
+        struct timeval tv;
+        int ok;
+        ok = gettimeofday(&tv, (void *) 0);
+        if (ok<0) {
+                printf("gettimeofday error");
+        }
+        return (tv.tv_sec * 1.0 + tv.tv_usec * 1.0E-6);
+}
 
 // Function to process a line of Java code and generate C code
 void processLine(char *line, FILE *outputFile) {
@@ -38,9 +38,10 @@ void processLine(char *line, FILE *outputFile) {
         fprintf(stderr, "Unsupported line: %s\n", line);
     }
 }
+
 int main(int argc, char *argv[]) {
-//      float t0 = get_clock(); // start timer
-        clock_t t0 = clock(); // start timer
+        double t0 = get_clock(); // start timer
+        //clock_t t0 = clock(); // start timer
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <input_file> <output_file>\n", argv[0]);
         return 1;
@@ -64,7 +65,7 @@ int main(int argc, char *argv[]) {
     char line[256];
     while (fgets(line, sizeof(line), inputFile)) {
         line[strcspn(line, "\n")] = '\0'; // Remove newline character
-         processLine(line, outputFile);
+        processLine(line, outputFile);
     }
 
     fprintf(outputFile, "return 0;\n}\n");
@@ -72,9 +73,9 @@ int main(int argc, char *argv[]) {
     fclose(inputFile);
     fclose(outputFile);
 
-        //float t1 = get_clock(); // end timer
-        clock_t t1 = clock();
-        printf("time per call: %f ns\n", (float)((t1-t0)) );
+        double t1 = get_clock(); // end timer
+//      clock_t t1 = clock();
+        printf("time per call: %f s\n", (t1-t0));
 
     return 0;
 }
